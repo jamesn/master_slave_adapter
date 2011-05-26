@@ -9,7 +9,7 @@ module ActiveRecord
       include ActiveSupport::Callbacks
       define_callbacks :checkout, :checkin
 
-      checkout :test_connections
+      set_callback :checkout, :before, :test_connections
 
       attr_accessor :connections
       attr_accessor :master_config
