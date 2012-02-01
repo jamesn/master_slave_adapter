@@ -1,7 +1,7 @@
 --- !ruby/object:Gem::Specification 
 name: master_slave_adapter
 version: !ruby/object:Gem::Version 
-  version: 1.0.0
+  version: 1.0.5
 platform: ruby
 authors: 
 - Maurício Linhares
