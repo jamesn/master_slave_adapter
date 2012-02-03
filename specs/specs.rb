@@ -211,17 +211,17 @@ describe ActiveRecord::ConnectionAdapters::MasterSlaveAdapter do
     def slave_should_report_clock(pos)
       pos = Array(pos)
       values = pos.map { |p| { 'Relay_Master_Log_File' => '', 'Exec_Master_Log_Pos' => p } }
-      slave_connection
-        .should_receive('select_one').exactly(pos.length).with('SHOW SLAVE STATUS')
-        .and_return(*values)
+      slave_connection.
+        should_receive('select_one').exactly(pos.length).with('SHOW SLAVE STATUS').
+        and_return(*values)
     end
 
     def master_should_report_clock(pos)
       pos = Array(pos)
       values = pos.map { |p| { 'File' => '', 'Position' => p } }
-      master_connection
-        .should_receive('select_one').exactly(pos.length).with('SHOW MASTER STATUS')
-        .and_return(*values)
+      master_connection.
+        should_receive('select_one').exactly(pos.length).with('SHOW MASTER STATUS').
+        and_return(*values)
     end
 
     SelectMethods.each do |method|
@@ -287,26 +287,27 @@ describe ActiveRecord::ConnectionAdapters::MasterSlaveAdapter do
       slave_should_report_clock(0)
       master_should_report_clock([0, 1, 1])
 
-      slave_connection
-        .should_receive('select_all').exactly(1).times.with('testing')
-        .and_return(true)
+      slave_connection.
+        should_receive('select_all').exactly(1).times.with('testing').
+        and_return(true)
 
-      master_connection
-        .should_receive('update').exactly(3).times.with('testing')
-        .and_return(true)
-     master_connection
-        .should_receive('select_all').exactly(5).times.with('testing')
-        .and_return(true)
+      master_connection.
+        should_receive('update').exactly(3).times.with('testing').
+        and_return(true)
+     master_connection.
+        should_receive('select_all').exactly(5).times.with('testing').
+        and_return(true)
       %w(begin_db_transaction
          commit_db_transaction
          increment_open_transactions
-         decrement_open_transactions).each do |txstmt|
+         decrement_open_transactions
+         outside_transaction?).each do |txstmt|
         master_connection.should_receive(txstmt).exactly(1).times
       end
 
-      master_connection
-        .should_receive('open_transactions').exactly(13).times
-        .and_return(
+      master_connection.
+        should_receive('open_transactions').exactly(13).times.
+        and_return(
           # adapter: with_consistency, select_all, update, select_all
           0, 0, 0, 0,
           # connection: transaction
@@ -341,10 +342,10 @@ describe ActiveRecord::ConnectionAdapters::MasterSlaveAdapter do
 
     context "with nested with_consistency" do
       it "should return the same clock if not writing and no lag" do
-        slave_should_report_clock([ 0, 0 ])
-        slave_connection
-          .should_receive('select_one').exactly(3).times.with('testing')
-          .and_return(true)
+        slave_should_report_clock(0) # note: tests memoizing slave clock
+        slave_connection.
+          should_receive('select_one').exactly(3).times.with('testing').
+          and_return(true)
 
         old_clock = zero
         new_clock = ActiveRecord::Base.with_consistency(old_clock) do
@@ -358,13 +359,15 @@ describe ActiveRecord::ConnectionAdapters::MasterSlaveAdapter do
       end
 
       it "requesting a newer clock should return a new clock" do
-        slave_should_report_clock([0,0])
-        slave_connection
-          .should_receive('select_all').exactly(2).times.with('testing')
-          .and_return(true)
-        master_connection
-          .should_receive('select_all').exactly(1).times.with('testing')
-          .and_return(true)
+        adapter_connection.
+          should_receive('slave_consistent?').exactly(2).times.
+          and_return(true, false)
+        slave_connection.
+          should_receive('select_all').exactly(2).times.with('testing').
+          and_return(true)
+        master_connection.
+          should_receive('select_all').exactly(1).times.with('testing').
+          and_return(true)
 
         start_clock = zero
         inner_clock = zero
@@ -439,23 +442,24 @@ describe ActiveRecord::ConnectionAdapters::MasterSlaveAdapter do
     end
 
     def run_tx
-      adapter_connection
-        .should_receive('master_clock')
-        .and_return(Clock.new('', 1))
+      adapter_connection.
+        should_receive('master_clock').
+        and_return(Clock.new('', 1))
       %w(begin_db_transaction
          commit_db_transaction
          increment_open_transactions
-         decrement_open_transactions).each do |txstmt|
-        master_connection
-          .should_receive(txstmt).exactly(1).times
+         decrement_open_transactions
+         outside_transaction?).each do |txstmt|
+        master_connection.
+          should_receive(txstmt).exactly(1).times
       end
-      master_connection
-        .should_receive('open_transactions').exactly(4).times
-        .and_return(0, 1, 0, 0)
+      master_connection.
+        should_receive('open_transactions').exactly(4).times.
+        and_return(0, 1, 0, 0)
 
-      master_connection
-        .should_receive('update').with('testing')
-        .and_return(true)
+      master_connection.
+        should_receive('update').with('testing').
+        and_return(true)
 
       ActiveRecord::Base.transaction do
         adapter_connection.send('update', 'testing')
@@ -467,15 +471,17 @@ describe ActiveRecord::ConnectionAdapters::MasterSlaveAdapter do
          rollback_db_transaction
          increment_open_transactions
          decrement_open_transactions).each do |txstmt|
-        master_connection
-          .should_receive(txstmt).exactly(1).times
+        master_connection.
+          should_receive(txstmt).exactly(1).times
       end
-      master_connection
-        .should_receive('open_transactions').exactly(3).times
-        .and_return(0, 1, 0)
-      master_connection
-        .should_receive('update').with('testing')
-        .and_return(true)
+      master_connection.
+        should_receive('outside_transaction?').exactly(2).times
+      master_connection.
+        should_receive('open_transactions').exactly(3).times.
+        and_return(0, 1, 0)
+      master_connection.
+        should_receive('update').with('testing').
+        and_return(true)
 
       ActiveRecord::Base.transaction do
         adapter_connection.send('update', 'testing')

@@ -42,13 +42,18 @@ module ActiveRecord
         ConnectionAdapters::MasterSlaveAdapter.new(config, logger)
       end
 
+      def mysql_master_slave_connection(config)
+        master_slave_connection(config)
+      end
+
     private
 
       def massage(config)
         config = config.symbolize_keys
         skip = [ :adapter, :connection_adapter, :master, :slaves ]
-        defaults = config.reject { |k,_| skip.include?(k) }
-                         .merge(:adapter => config.fetch(:connection_adapter))
+        defaults = config.
+          reject { |k,_| skip.include?(k) }.
+          merge(:adapter => config.fetch(:connection_adapter))
         ([config.fetch(:master)] + config.fetch(:slaves, [])).map do |cfg|
           cfg.symbolize_keys!.reverse_merge!(defaults)
         end
@@ -142,7 +147,7 @@ module ActiveRecord
         # try random slave, else fall back to master
         slave = slave_connection!
         conn =
-          if !open_transaction? && slave_clock(slave).try(:>=, clock)
+          if !open_transaction? && slave_consistent?(slave, clock)
             [ slave, :slave ]
           else
             [ master_connection, :master ]
@@ -264,8 +269,8 @@ module ActiveRecord
                :delete_sql,
                :sanitize_limit,
                :to => :master_connection
-      delegate *ActiveRecord::ConnectionAdapters::SchemaStatements.instance_methods,
-               :to => :master_connection
+      delegate *(ActiveRecord::ConnectionAdapters::SchemaStatements.instance_methods + [{
+               :to => :master_connection }])
       # no clear interface contract:
       delegate :tables,         # commented in SchemaStatements
                :truncate_table, # monkeypatching database_cleaner gem
@@ -298,8 +303,10 @@ module ActiveRecord
       private :connection_for_read
 
       # === doesn't really matter, but must be handled by underlying adapter
-      delegate *ActiveRecord::ConnectionAdapters::Quoting.instance_methods,
-               :to => :current_connection
+      delegate *(ActiveRecord::ConnectionAdapters::Quoting.instance_methods + [{
+               :to => :current_connection }])
+      # issue #4: current_database is not supported by all adapters, though
+      delegate :current_database, :to => :current_connection
 
       # UTIL ==================================================================
 
@@ -340,11 +347,17 @@ module ActiveRecord
         end
       end
 
-      def slave_clock(connection = nil)
-        conn ||= slave_connection!
+      def slave_clock(conn)
         if status = conn.uncached { conn.select_one("SHOW SLAVE STATUS") }
-          Clock.new(status['Relay_Master_Log_File'], status['Exec_Master_Log_Pos'])
+          Clock.new(status['Relay_Master_Log_File'], status['Exec_Master_Log_Pos']).tap do |c|
+            set_last_seen_slave_clock(conn, c)
+          end
         end
+      end
+
+      def slave_consistent?(conn, clock)
+        get_last_seen_slave_clock(conn).try(:>=, clock) ||
+          slave_clock(conn).try(:>=, clock)
       end
 
     protected
@@ -405,6 +418,17 @@ module ActiveRecord
 
       def on_rollback_callbacks
         Thread.current[:on_rollback_callbacks] ||= []
+      end
+
+      def get_last_seen_slave_clock(conn)
+        conn.instance_variable_get(:@last_seen_slave_clock)
+      end
+
+      def set_last_seen_slave_clock(conn, clock)
+        last_seen = get_last_seen_slave_clock(conn)
+        if last_seen.nil? || last_seen < clock
+          conn.instance_variable_set(:@last_seen_slave_clock, clock)
+        end
       end
     end
   end
