@@ -1,70 +1,25 @@
---- !ruby/object:Gem::Specification 
-name: master_slave_adapter
-version: !ruby/object:Gem::Version 
-  version: 1.0.5
-platform: ruby
-authors: 
-- Maurício Linhares
-- James Nuckolls
-bindir: bin
-cert_chain: []
+# -*- encoding: utf-8 -*-
+$:.push File.expand_path("../lib", __FILE__)
 
-date: 2009-09-22 00:00:00 -05:00
-default_executable: 
-dependencies: 
-- !ruby/object:Gem::Dependency 
-  name: activerecord
-  type: :runtime
-  version_requirement: 
-  version_requirements: !ruby/object:Gem::Requirement 
-    requirements: 
-    - - ">="
-      - !ruby/object:Gem::Version 
-        version: 2.3.0
-    version: 
-description: A simple plugin acts as a common ActiveRecord adapter and allows you to setup a master-slave environment using any database you like.
-email: afeIfz.drtgcE@what.net
-executables: []
+Gem::Specification.new do |s|
+  s.name        = 'master_slave_adapter_soundcloud'
+  s.version     = File.read('VERSION').to_s
+  s.date        = '2011-06-21'
+  s.platform    = Gem::Platform::RUBY
+  s.authors     = [ 'Mauricio Linhares', 'Torsten Curdt', 'Kim Altintop', 'Omid Aladini', 'SoundCloud' ]
+  s.email       = %q{kim@soundcloud.com tcurdt@soundcloud.com omid@soundcloud.com}
+  s.homepage    = 'http://github.com/soundcloud/master_slave_adapter'
+  s.summary     = %q{Replication Aware Master/Slave Database Adapter for Rails/ActiveRecord}
+  s.description = %q{(MySQL) Replication Aware Master/Slave Database Adapter for Rails/ActiveRecord}
 
-extensions: []
+  s.files        = `git ls-files`.split("\n")
+  s.test_files   = `git ls-files -- {test,spec,features}/*`.split("\n")
+  s.executables  = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
+  s.require_path = 'lib'
 
-extra_rdoc_files: 
-- README
-- LICENSE
-files: 
-- init.rb
-- lib/active_record/connection_adapters/master_slave_adapter.rb
-- lib/master_slave_adapter/active_record_extensions.rb
-- lib/master_slave_adapter/adapter.rb
-- lib/master_slave_adapter/instance_methods_generation.rb
-- specs/specs.rb
-- README
-- LICENSE
-has_rdoc: true
-homepage: http://github.com/jamesn/master_slave_adapter
-post_install_message: 
-rdoc_options: []
+  s.required_ruby_version     = '>= 1.9.2'
+  s.required_rubygems_version = '>= 1.3.7'
+  s.add_development_dependency 'rspec'
 
-require_paths: 
-- lib
-required_ruby_version: !ruby/object:Gem::Requirement 
-  requirements: 
-  - - ">="
-    - !ruby/object:Gem::Version 
-      version: "0"
-  version: 
-required_rubygems_version: !ruby/object:Gem::Requirement 
-  requirements: 
-  - - ">="
-    - !ruby/object:Gem::Version 
-      version: "0"
-  version: 
-requirements: []
-
-rubyforge_project: 
-rubygems_version: 1.3.1
-signing_key: 
-specification_version: 2
-summary: A simple plugin acts as a common ActiveRecord adapter and allows you to setup a master-slave environment using any database you like.
-test_files: []
-
+  s.add_dependency 'activerecord', '= 2.3.9'
+end
