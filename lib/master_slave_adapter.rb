@@ -82,11 +82,10 @@ module ActiveRecord
   module ConnectionAdapters
 
     class AbstractAdapter
-      alias_method :orig_log_info, :log_info
       def log_info(sql, name, ms)
         connection_name =
           [ @config[:name], @config[:host], @config[:port] ].compact.join(":")
-        orig_log_info sql, "[#{connection_name}] #{name || 'SQL'}", ms
+        log sql, "[#{connection_name}] #{name || 'SQL'}", ms
       end
     end
 
@@ -118,7 +117,8 @@ module ActiveRecord
         end
       end
 
-      checkout :active?
+      set_callback :checkout, :before, :active?
+      set_callback :checkout, :before, :fixThread
 
       def initialize(config, logger)
         super(nil, logger)
@@ -126,7 +126,9 @@ module ActiveRecord
         @connections = {}
         @connections[:master] = connect(config.fetch(:master), :master)
         @connections[:slaves] = config.fetch(:slaves).map { |cfg| connect(cfg, :slave) }
-
+        
+        @masterThread = Thread.current
+        
         @disable_connection_test = config.delete(:disable_connection_test) == 'true'
 
         self.current_connection = slave_connection!
@@ -216,6 +218,16 @@ module ActiveRecord
         return true if @disable_connection_test
         self.connections.map { |c| c.active? }.reduce(true) { |m,s| s ? m : s }
       end
+      
+      def fixThread
+        t = Thread.current
+        keys = t.keys
+        [:master_slave_clock, :master_slave_connection, :on_commit_callbacks, :on_rollback_callbacks].each do |k|
+          t[k] = @masterThread[k] unless keys.include?(k)
+        end
+        Thread.current[:open_transactions] = 0 
+        self
+      end
 
       def reconnect!
         self.connections.each { |c| c.reconnect! }
@@ -245,9 +257,6 @@ module ActiveRecord
                :supports_savepoints?,
                :native_database_types,
                :raw_connection,
-               :open_transactions,
-               :increment_open_transactions,
-               :decrement_open_transactions,
                :transaction_joinable=,
                :create_savepoint,
                :rollback_to_savepoint,
@@ -268,6 +277,7 @@ module ActiveRecord
                :update_sql,
                :delete_sql,
                :sanitize_limit,
+               :visitor,
                :to => :master_connection
       delegate *(ActiveRecord::ConnectionAdapters::SchemaStatements.instance_methods + [{
                :to => :master_connection }])
@@ -325,11 +335,17 @@ module ActiveRecord
       end
 
       def current_connection
-        connection_stack.first
+        @connectionMutex = Mutex.new if @connectionMutex.nil?
+        ret = nil
+        @connectionMutex.synchronize { ret =  connection_stack.first}
+        ret
       end
 
       def current_connection=(conn)
-        connection_stack.unshift conn
+        @connectionMutex = Mutex.new if @connectionMutex.nil?
+        ret = nil
+        @connectionMutex.synchronize { ret = connection_stack.unshift conn }
+        ret
       end
 
       def current_clock
@@ -403,9 +419,30 @@ module ActiveRecord
         adapter_method = "#{cfg.fetch(:adapter)}_connection".to_sym
         ActiveRecord::Base.send(adapter_method, { :name => name }.merge(cfg))
       end
+      
+      attr_reader :open_transactions
+      
+      def open_transactions
+        Thread.current[:open_transactions] = 0 if Thread.current[:open_transactions].nil?
+        Thread.current[:open_transactions]
+      end
+
+      def increment_open_transactions
+        Thread.current[:open_transactions] = 0 if Thread.current[:open_transactions].nil?
+        Thread.current[:open_transactions] += 1
+      end
+
+      def decrement_open_transactions
+        Thread.current[:open_transactions] = 0 if Thread.current[:open_transactions].nil?
+        Thread.current[:open_transactions] -= 1        
+      end
+
+      def transaction_joinable=(joinable)
+        @transaction_joinable = joinable
+      end
 
       def open_transaction?
-        master_connection.open_transactions > 0
+        Thread.current[:open_transactions] > 0
       end
 
       def connection_stack
