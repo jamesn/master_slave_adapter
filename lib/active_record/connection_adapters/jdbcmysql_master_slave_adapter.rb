@@ -5,7 +5,7 @@ require 'active_record/connection_adapters/jdbcmysql_adapter'
 
 module ActiveRecord
   class Base
-    def self.mysql2_master_slave_connection(config)
+    def self.jdbcmysql_master_slave_connection(config)
       ConnectionAdapters::JdbcMysqlMasterSlaveAdapter.new(config, logger)
     end
   end
