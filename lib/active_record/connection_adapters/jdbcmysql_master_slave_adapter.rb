@@ -2,7 +2,6 @@ require 'active_record/connection_adapters/master_slave_adapter'
 require 'active_record/connection_adapters/master_slave_adapter/clock'
 require 'active_record/connection_adapters/master_slave_adapter/shared_mysql_adapter_behavior'
 require 'active_record/connection_adapters/jdbcmysql_adapter'
-require 'mysql2'
 
 module ActiveRecord
   class Base
